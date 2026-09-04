@@ -127,3 +127,23 @@ async def get_weather_new(data):
     message = f"Сейчас температура {temperature[hour]} (ощущается как {app_temperature[hour]}), погода {weather}"
 
     return message
+
+async def get_weather_day(data):
+    hourly_data = data["hourly"]
+
+    time = hourly_data["time"]
+    temperature = hourly_data["temperature_2m"]
+    weather_code = hourly_data["weather_code"]
+    app_temperature = hourly_data["apparent_temperature"]
+
+    message = "Погода на сегодня: "
+
+    for i in  range(24):
+        hour_min = datetime.fromisoformat(time[i])
+        hour_min = hour_min.strftime("%H:%M")
+
+        weather = await weather_code_string(weather_code, i)
+
+        message += f"\n{hour_min} - {temperature[i]} °C ({app_temperature[i]} °C), {weather}"
+    
+    return message
