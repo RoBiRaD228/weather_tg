@@ -1,0 +1,75 @@
+import asyncio
+import logging
+import sys
+from os import getenv
+
+from aiogram import Bot, Dispatcher, html, Router, F
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
+from aiogram.filters import CommandStart
+from aiogram.types import Message
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.context import FSMContext
+
+from weather import get_weather, get_weather_new
+
+from db import db
+
+wether_api = getenv("API")
+
+token = getenv("BOT_API")
+
+dp = Dispatcher()
+router = Router()
+
+class Form(StatesGroup):
+    waiting_from_city = State()
+
+@router.message(F.text == "/new")
+async def ask_city(message: Message, state: FSMContext):
+    city = await db.get_user_city(message.from_user.id)
+    if city != None:
+        data = await get_weather(city, wether_api)
+        string = await get_weather_new(data)
+
+        await message.answer(string)
+        await state.clear()
+
+        return
+
+    await message.answer("Введите название города")
+    await state.set_state(Form.waiting_from_city)
+
+@router.message(Form.waiting_from_city)
+async def weather_new(message: Message, state: FSMContext):
+    city = message.text
+    data = await get_weather(city, wether_api)
+
+    if data == None:
+        await message.answer("Такой город не найден, введите город ещё раз")
+        return
+
+    await db.add_user_city(message.from_user.id, city)
+    string = await get_weather_new(data)
+
+    await message.answer(string)
+    await state.clear()
+
+@router.message(CommandStart)
+async def command_start(message: Message) -> None:
+    await message.answer(f"Привет, {message.from_user.full_name}" +
+    """Вот список команд:
+/new - Погода в данный момент""")
+
+async def main() -> None:
+    await db.connect()
+    dp.include_router(router)
+    bot = Bot(token=token, default=DefaultBotProperties(parse_mode = ParseMode.HTML))
+    try:
+        await dp.start_polling(bot)
+    finally:
+        await db.close()
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+    asyncio.run(main())
