@@ -11,7 +11,7 @@ from aiogram.types import Message
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 
-from weather import get_weather, get_weather_new, get_weather_day
+from weather import get_weather, get_weather_new, get_weather_day, get_weather_three_day
 
 from db import db
 
@@ -25,6 +25,7 @@ router = Router()
 class Form(StatesGroup):
     waiting_from_city_new = State()
     waiting_from_city_day = State()
+    waiting_from_city_three_day = State()
 
 @router.message(F.text == "/new")
 async def weather_new_ask_city(message: Message, state: FSMContext):
@@ -82,6 +83,35 @@ async def weather_day(message: Message, state: FSMContext):
 
     await db.add_user_city(message.from_user.id, city)
     string = await get_weather_day(data)
+
+    await message.answer(string)
+    await state.clear()
+
+@router.message(F.text == "/three_days")
+async def three_days_ask_city(message: Message, state: FSMContext) -> None:
+    city = await db.get_user_city(message.from_user.id)
+    if city != None:
+        data = await get_weather(city, wether_api)
+        string = await get_weather_three_day(data)
+
+        await message.answer(string)
+        await state.clear()
+
+        return
+
+    await message.answer("Введите название города")
+    await state.set_state(Form.waiting_from_city_three_day)
+
+@router.message(Form.waiting_from_city_three_day)
+async def three_days(message: Message, state: FSMContext):
+    city = message.text
+    data = await get_weather(city, wether_api)
+
+    if data == None:
+        await message.answer("Такой город не найден, введите город ещё раз")
+        return
+
+    string = await get_weather_three_day(data)
 
     await message.answer(string)
     await state.clear()

@@ -6,6 +6,8 @@ from dotenv import load_dotenv
 import requests
 from datetime import datetime, timezone, timedelta
 
+import math
+
 load_dotenv()
 
 api_key = os.getenv("API")
@@ -50,8 +52,8 @@ async def get_weather(city, api_key):
             data = await response.json()
             return data
 
-async def weather_code_string(weather_code, hour):
-    match weather_code[hour]:
+async def weather_code_string(weather_code):
+    match weather_code:
         case 0:
             weather = "Ясно"
         case 1:
@@ -122,7 +124,7 @@ async def get_weather_new(data):
 
     hour = user_time.hour
 
-    weather = await weather_code_string(weather_code, hour)
+    weather = await weather_code_string(weather_code[hour])
 
     message = f"Сейчас температура {temperature[hour]} (ощущается как {app_temperature[hour]}), погода {weather}"
 
@@ -142,8 +144,40 @@ async def get_weather_day(data):
         hour_min = datetime.fromisoformat(time[i])
         hour_min = hour_min.strftime("%H:%M")
 
-        weather = await weather_code_string(weather_code, i)
+        weather = await weather_code_string(weather_code[i])
 
         message += f"\n{hour_min} - {temperature[i]} °C ({app_temperature[i]} °C), {weather}"
+    
+    return message
+
+async def get_weather_three_day(data):
+    hourly_data = data["hourly"]
+
+    time = hourly_data["time"]
+    temperature = hourly_data["temperature_2m"]
+    weather_code = hourly_data["weather_code"]
+    app_temperature = hourly_data["apparent_temperature"]
+
+    message = "Погода на 3 дня:\n"
+
+    for i in  range(3):
+        today_temp = temperature[(i * 24):(24 * (i + 1))]
+        today_app_temp = app_temperature[(i * 24):(24 * (i + 1))]
+        today_weather = weather_code[(i * 24):(24 * (i + 1))]
+
+        max_temp = max(today_temp)
+        min_temp = min(today_temp)
+
+        max_app_temp = max(today_app_temp)
+        min_app_temp = min(today_app_temp)
+
+        most_weather_code = max(today_weather, key = today_weather.count)
+
+        day = datetime.fromisoformat(time[i * 24])
+        day = day.strftime("%d.%m")
+
+        weather = await weather_code_string(most_weather_code)
+
+        message += f"\n{day} - макс. {max_temp} °C, мин. {min_temp} °C, {weather}\n"
     
     return message
