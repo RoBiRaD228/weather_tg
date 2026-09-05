@@ -60,7 +60,7 @@ async def weather_new(message: Message, state: FSMContext):
     await state.clear()
 
 @router.message(F.text == "/day")
-async def weather_day_ask_city(message: Message) -> None:
+async def weather_day_ask_city(message: Message, state: FSMContext) -> None:
     city = await db.get_user_city(message.from_user.id)
     if city != None:
         data = await get_weather(city, wether_api)
