@@ -10,11 +10,13 @@ from aiogram.filters import CommandStart
 from aiogram.types import Message
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, FSInputFile
 
-from weather import get_weather, get_weather_new, get_weather_day, get_weather_three_day
+from weather import get_weather, get_weather_new, get_weather_new_data, get_weather_day, get_weather_three_day, get_weather_three_days_data
 
 from db import db
+
+from image import generate_weather_widget, generate_weather_widget_three_days
 
 wether_api = getenv("API")
 
@@ -136,6 +138,7 @@ async def setting(message: Message) -> None:
 
 @router.callback_query(F.data == 'update_city')
 async def ask_update_city(call: CallbackQuery, state: FSMContext):
+    await call.answer("Ожидаю написание города", show_alert=False)
     await call.message.answer("Введите название города")
     await state.set_state(Form.waiting_from_update_city)
 
@@ -153,13 +156,38 @@ async def update_city(message: Message, state: FSMContext):
 
     await state.clear()
 
+@router.message(F.text == '/image')
+async def create_image(message: Message):
+    city = await db.get_user_city(message.from_user.id)
+    data = await get_weather(city, wether_api)
+
+    current_temp, app_current_temp, weather = await get_weather_new_data(data)
+
+    file_path = await generate_weather_widget(city, current_temp, app_current_temp, weather, message.from_user.id)
+    image = FSInputFile(file_path)
+
+    await message.answer_photo(photo=image, caption=f"Текущая погода в {city}")
+
+@router.message(F.text == '/image_three')
+async def create_three_image(message: Message):
+    city = await db.get_user_city(message.from_user.id)
+    data = await get_weather(city, wether_api)
+
+    current_temp_list, app_current_temp_list, weather_list, third_day = await get_weather_three_days_data(data)
+
+    file_path = await generate_weather_widget_three_days(city, current_temp_list, app_current_temp_list, weather_list, third_day, message.from_user.id)
+    image = FSInputFile(file_path)
+
+    await message.answer_photo(photo=image, caption=f"Погода на 3 дня в {city}")
+
 @router.message(CommandStart)
 async def command_start(message: Message) -> None:
     await message.answer(f"Привет, {message.from_user.full_name}" +
     """Вот список команд:
 /new - Погода в данный момент
 /day - Погода на день
-/three_days - Погода на три дня""")
+/three_days - Погода на три дня
+/setting - Настройки""")
 
 async def main() -> None:
     await db.connect()

@@ -6,11 +6,16 @@ from dotenv import load_dotenv
 import requests
 from datetime import datetime, timezone, timedelta
 
+import locale
 import math
 
 load_dotenv()
 
 api_key = os.getenv("API")
+
+DAYS = ["пнд.", "втр.", "ср.", "чтв.", "пят.", "суб.", "вос."]
+MONTHS = ["января", "февраля", "марта", "апреля", "мая", "июня", 
+"июля", "августа", "сентября", "октября", "ноября", "декабря"]
 
 async def get_city_parms(city_name, api_key):
     url = "http://api.openweathermap.org/geo/1.0/direct"
@@ -130,6 +135,25 @@ async def get_weather_new(data):
 
     return message
 
+async def get_weather_new_data(data):
+    hourly_data = data["hourly"]
+
+    time = hourly_data["time"]
+    temperature = hourly_data["temperature_2m"]
+    weather_code = hourly_data["weather_code"]
+    app_temperature = hourly_data["apparent_temperature"]
+
+    offset_seconds = data["utc_offset_seconds"]
+    now_utc = datetime.now(timezone.utc)
+    user_time = now_utc + timedelta(seconds=offset_seconds)
+    hour = user_time.hour
+
+    current_temp = f"{round(temperature[hour])}"
+    app_current_temp = f"{round(app_temperature[hour])}"
+    weather = await weather_code_string(weather_code[hour])
+
+    return current_temp, app_current_temp, weather
+
 async def get_weather_day(data):
     hourly_data = data["hourly"]
 
@@ -181,3 +205,43 @@ async def get_weather_three_day(data):
         message += f"\n{day} - макс. {max_temp} °C, мин. {min_temp} °C, {weather}\n"
     
     return message
+
+async def get_weather_three_days_data(data):
+    hourly_data = data["hourly"]
+
+    time = hourly_data["time"]
+    temperature = hourly_data["temperature_2m"]
+    weather_code = hourly_data["weather_code"]
+    app_temperature = hourly_data["apparent_temperature"]
+
+    temp_list = []
+    app_temp_list = []
+    weather_list = []
+
+    for i in  range(3):
+        today_temp = temperature[(i * 24):(24 * (i + 1))]
+        today_app_temp = app_temperature[(i * 24):(24 * (i + 1))]
+        today_weather = weather_code[(i * 24):(24 * (i + 1))]
+
+        max_temp = max(today_temp)
+        min_temp = min(today_temp)
+
+        max_app_temp = max(today_app_temp)
+        min_app_temp = min(today_app_temp)
+
+        most_weather_code = max(today_weather, key = today_weather.count)
+        weather = await weather_code_string(most_weather_code)
+
+        temp_list.append(max_temp)
+        app_temp_list.append(max_app_temp)
+        weather_list.append(weather)
+
+    third_day_date = datetime.now() + timedelta(days=2)
+
+    weekday = DAYS[third_day_date.weekday()].capitalize()
+    day_num = third_day_date.day
+    month = MONTHS[third_day_date.month - 1]
+
+    third_day = f"{weekday} {day_num} {month}"
+    
+    return temp_list, app_temp_list, weather_list, third_day
