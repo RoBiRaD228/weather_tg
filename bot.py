@@ -6,17 +6,17 @@ from os import getenv
 from aiogram import Bot, Dispatcher, html, Router, F
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, Command, CommandObject
 from aiogram.types import Message
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, FSInputFile
 
-from weather import get_weather, get_weather_new, get_weather_new_data, get_weather_day, get_weather_three_day, get_weather_three_days_data
+from weather import get_weather, get_weather_new, get_weather_new_data, get_weather_day, get_weather_three_day, get_weather_three_days_data, get_weather_tomorow, get_weather_data
 
 from db import db
 
-from image import generate_weather_widget, generate_weather_widget_three_days
+from image import generate_weather_widget, generate_weather_widget_three_days, generate_weather_widget_hourly
 
 wether_api = getenv("API")
 
@@ -30,6 +30,7 @@ class Form(StatesGroup):
     waiting_from_city_day = State()
     waiting_from_city_three_day = State()
     waiting_from_update_city = State()
+    waiting_from_city_tomorow = State()
 
 @router.message(F.text == "/new")
 async def weather_new_ask_city(message: Message, state: FSMContext):
@@ -87,6 +88,36 @@ async def weather_day(message: Message, state: FSMContext):
 
     await db.add_user_city(message.from_user.id, city)
     string = await get_weather_day(data)
+
+    await message.answer(string)
+    await state.clear()
+
+@router.message(F.text == "/tomorow")
+async def weather_tomorow_ask_city(message: Message, state: FSMContext) -> None:
+    city = await db.get_user_city(message.from_user.id)
+    if city != None:
+        data = await get_weather(city, wether_api)
+        string = await get_weather_tomorow(data)
+
+        await message.answer(string)
+        await state.clear()
+
+        return
+
+    await message.answer("Введите название города")
+    await state.set_state(Form.waiting_from_city_tomorow)
+
+@router.message(Form.waiting_from_city_tomorow)
+async def weather_day(message: Message, state: FSMContext):
+    city = message.text
+    data = await get_weather(city, wether_api)
+
+    if data == None:
+        await message.answer("Такой город не найден, введите город ещё раз")
+        return
+
+    await db.add_user_city(message.from_user.id, city)
+    string = await get_weather_tomorow(data)
 
     await message.answer(string)
     await state.clear()
@@ -179,6 +210,30 @@ async def create_three_image(message: Message):
     image = FSInputFile(file_path)
 
     await message.answer_photo(photo=image, caption=f"Погода на 3 дня в {city}")
+
+@router.message(Command("image_day"))
+async def create_image_day(message: Message, command: CommandObject):
+    args = command.args
+
+    if not args:
+        await message.answer("Вы не ввкли число после команды (/image_day 3)")
+        return
+    
+    if not args.isdigit:
+        await message.answer("Число должно быть целым (/image_day 3)")
+        return
+    
+    day = int(args)
+
+    city = await db.get_user_city(message.from_user.id)
+    data = await get_weather(city, wether_api)
+
+    time_list, temp_list, app_temp_list, weather_list, day_date_str = await get_weather_data(data, day)
+    file_path = await generate_weather_widget_hourly(city, day_date_str, temp_list, app_temp_list, weather_list, message.from_user.id)
+
+    image = FSInputFile(file_path)
+
+    await message.answer_photo(photo=image, caption=f"Погода в {city}")
 
 @router.message(CommandStart)
 async def command_start(message: Message) -> None:

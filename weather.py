@@ -174,6 +174,26 @@ async def get_weather_day(data):
     
     return message
 
+async def get_weather_tomorow(data):
+    hourly_data = data["hourly"]
+
+    time = hourly_data["time"]
+    temperature = hourly_data["temperature_2m"]
+    weather_code = hourly_data["weather_code"]
+    app_temperature = hourly_data["apparent_temperature"]
+
+    message = "Погода на сегодня: "
+
+    for i in  range(24, 48):
+        hour_min = datetime.fromisoformat(time[i])
+        hour_min = hour_min.strftime("%H:%M")
+
+        weather = await weather_code_string(weather_code[i])
+
+        message += f"\n{hour_min} - {temperature[i]} °C ({app_temperature[i]} °C), {weather}"
+    
+    return message
+
 async def get_weather_three_day(data):
     hourly_data = data["hourly"]
 
@@ -245,3 +265,37 @@ async def get_weather_three_days_data(data):
     third_day = f"{weekday} {day_num} {month}"
     
     return temp_list, app_temp_list, weather_list, third_day
+
+async def get_weather_data(data, day):
+    hourly_data = data["hourly"]
+
+    time = hourly_data["time"]
+    temperature = hourly_data["temperature_2m"]
+    weather_code = hourly_data["weather_code"]
+    app_temperature = hourly_data["apparent_temperature"]
+
+    time_list = list()
+    temperature_list = list()
+    app_temperature_list = list()
+    weather_list = list()
+
+    for i in range(day * 24, (day + 1) * 24):
+        time_list.append(time[i])
+        temperature_list.append(temperature[i])
+        app_temperature_list.append(app_temperature[i])
+
+        weathre = await weather_code_string(weather_code[i])
+        weather_list.append(weathre)
+
+    day_date = datetime.now() + timedelta(days=2)
+
+    weekday = DAYS[day_date.weekday()].capitalize()
+
+    day_num = day_date.day  # возвращает целое число (8 вместо "08")
+    month = MONTHS[day_date.month - 1]
+
+    day_date_str = f"{weekday} {day_num} {month}"  # Выведет: Вторник, 8 сентября
+
+    print(day_date_str)
+
+    return time_list, temperature_list, app_temperature_list, weather_list, day_date_str
