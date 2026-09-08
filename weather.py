@@ -287,14 +287,14 @@ async def get_weather_data(data, day):
         weathre = await weather_code_string(weather_code[i])
         weather_list.append(weathre)
 
-    day_date = datetime.now() + timedelta(days=2)
+    day_date = datetime.now() + timedelta(days=day)
 
     weekday = DAYS[day_date.weekday()].capitalize()
 
-    day_num = day_date.day  # возвращает целое число (8 вместо "08")
+    day_num = day_date.day
     month = MONTHS[day_date.month - 1]
 
-    day_date_str = f"{weekday} {day_num} {month}"  # Выведет: Вторник, 8 сентября
+    day_date_str = f"{weekday} {day_num} {month}"
 
     print(day_date_str)
 

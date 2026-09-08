@@ -1,9 +1,19 @@
 import os
+import asyncio
 from html2image import Html2Image
 
-hti = Html2Image()
-hti.output_path = "temp"
+hti = Html2Image(output_path="temp")
 os.makedirs("temp", exist_ok=True)
+
+# Вспомогательная синхронная функция рендеринга
+def _take_screenshot(html_code: str, file_name: str, size: tuple[int, int]) -> str:
+    hti.screenshot(
+        html_str=html_code, 
+        save_as=file_name, 
+        size=size
+    )
+    return os.path.join("temp", file_name)
+
 
 async def generate_weather_widget(city: str, current_temp: str, app_temp: str, weather: str, user_id: int) -> str:
     html_code = f"""
@@ -91,17 +101,16 @@ body {{
 </html>
     """
 
-    file_path = os.path.join("temp", f"{user_id}_weather_card.png")
+    file_name = f"{user_id}_weather_card.png"
     
-    # Размер уменьшен до 370x220, так как карточка стала ниже
-    hti.screenshot(
-        html_str=html_code, 
-        save_as=f"{user_id}_weather_card.png", 
-        size=(380, 220)
+    # Вызываем синхронное создание скриншота в отдельном потоке
+    file_path = await asyncio.to_thread(
+        _take_screenshot, html_code, file_name, (380, 220)
     )
     return file_path
 
-async def generate_weather_widget_three_days(city: str, current_temp_list: list, app_current_temp_list: list, weather_list: list, third_day: str, user_id: int):
+
+async def generate_weather_widget_three_days(city: str, current_temp_list: list, app_current_temp_list: list, weather_list: list, third_day: str, user_id: int) -> str:
     html_code = f"""
 <!DOCTYPE html>
 <html lang="ru">
@@ -228,14 +237,13 @@ async def generate_weather_widget_three_days(city: str, current_temp_list: list,
 </html>
 """
 
-    file_path = os.path.join("temp", f"{user_id}_weather_card.png")
-    # Размер уменьшен до 370x220, так как карточка стала ниже
-    hti.screenshot(
-        html_str=html_code, 
-        save_as=f"{user_id}_weather_card.png", 
-        size=(520, 250)
+    file_name = f"{user_id}_weather_card.png"
+    
+    file_path = await asyncio.to_thread(
+        _take_screenshot, html_code, file_name, (520, 250)
     )
     return file_path
+
 
 def get_weather_icon(weather_str: str) -> str:
     w = str(weather_str).lower()
@@ -305,7 +313,6 @@ async def generate_weather_widget_hourly(city: str, date_str: str, current_temp_
             margin-bottom: 8px;
         }}
 
-        /* Блок с названием города и датой */
         .city_block {{
             display: flex;
             align-items: baseline;
@@ -319,7 +326,6 @@ async def generate_weather_widget_hourly(city: str, date_str: str, current_temp_
             letter-spacing: -0.5px;
         }}
 
-        /* Новые стили для даты */
         .date {{
             font-size: 15px;
             font-weight: 500;
@@ -408,11 +414,8 @@ async def generate_weather_widget_hourly(city: str, date_str: str, current_temp_
 """
 
     file_name = f"{user_id}_hourly_weather_card.png"
-    file_path = os.path.join("temp", file_name)
 
-    hti.screenshot(
-        html_str=html_code, 
-        save_as=file_name, 
-        size=(520, 520)
+    file_path = await asyncio.to_thread(
+        _take_screenshot, html_code, file_name, (520, 520)
     )
     return file_path

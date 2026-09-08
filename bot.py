@@ -3,6 +3,8 @@ import logging
 import sys
 from os import getenv
 
+from typing import Callable, Any
+
 from aiogram import Bot, Dispatcher, html, Router, F
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
@@ -32,124 +34,110 @@ class Form(StatesGroup):
     waiting_from_update_city = State()
     waiting_from_city_tomorow = State()
 
-@router.message(F.text == "/new")
-async def weather_new_ask_city(message: Message, state: FSMContext):
+async def handle_weather_command(
+    message: Message,
+    state: FSMContext,
+    form_func: Callable[[Any], Any],
+    next_state: Any
+):
     city = await db.get_user_city(message.from_user.id)
-    if city != None:
+    if city is not None:
         data = await get_weather(city, wether_api)
-        string = await get_weather_new(data)
+        if data is not None:
+            string = await form_func(data)
+            await message.answer(string)
+            await state.clear()
+            return
+    
+    await message.answer("Введите название города")
+    await state.set_state(next_state)
 
-        await message.answer(string)
-        await state.clear()
+async def handle_weather_input(
+    message: Message,
+    state: FSMContext,
+    form_func: Callable[[Any], Any]
+):
+    city = await db.get_user_city(message.from_user.id)
+    data = await get_weather(city, wether_api)
 
+    if data is None:
+        await message.answer("Такой город не найден, введите его еще раз")
         return
 
-    await message.answer("Введите название города")
-    await state.set_state(Form.waiting_from_city_new)
+    await db.add_user_city(message.from_user.id, city)
+    string = await form_func(data)
+
+    await message.answer(string)
+    await state.clear()
+
+
+@router.message(F.text == "/new")
+async def weather_new_ask_city(message: Message, state: FSMContext):
+    await handle_weather_command(
+        message=message,
+        state=state,
+        form_func=get_weather_new,
+        next_state=Form.waiting_from_city_new
+    )
 
 @router.message(Form.waiting_from_city_new)
 async def weather_new(message: Message, state: FSMContext):
-    city = message.text
-    data = await get_weather(city, wether_api)
-
-    if data == None:
-        await message.answer("Такой город не найден, введите город ещё раз")
-        return
-
-    await db.add_user_city(message.from_user.id, city)
-    string = await get_weather_new(data)
-
-    await message.answer(string)
-    await state.clear()
+    await handle_weather_input(
+        message=message,
+        state=state,
+        form_func=get_weather_new
+    )
 
 @router.message(F.text == "/day")
 async def weather_day_ask_city(message: Message, state: FSMContext) -> None:
-    city = await db.get_user_city(message.from_user.id)
-    if city != None:
-        data = await get_weather(city, wether_api)
-        string = await get_weather_day(data)
-
-        await message.answer(string)
-        await state.clear()
-
-        return
-
-    await message.answer("Введите название города")
-    await state.set_state(Form.waiting_from_city_day)
+    await handle_weather_command(
+        message=message,
+        state=state,
+        form_func=get_weather_day,
+        next_state=Form.waiting_from_city_day
+    )
 
 @router.message(Form.waiting_from_city_day)
 async def weather_day(message: Message, state: FSMContext):
-    city = message.text
-    data = await get_weather(city, wether_api)
-
-    if data == None:
-        await message.answer("Такой город не найден, введите город ещё раз")
-        return
-
-    await db.add_user_city(message.from_user.id, city)
-    string = await get_weather_day(data)
-
-    await message.answer(string)
-    await state.clear()
+    await handle_weather_input(
+        message=message,
+        state=state,
+        form_func=get_weather_day
+    )
 
 @router.message(F.text == "/tomorow")
 async def weather_tomorow_ask_city(message: Message, state: FSMContext) -> None:
-    city = await db.get_user_city(message.from_user.id)
-    if city != None:
-        data = await get_weather(city, wether_api)
-        string = await get_weather_tomorow(data)
-
-        await message.answer(string)
-        await state.clear()
-
-        return
-
-    await message.answer("Введите название города")
-    await state.set_state(Form.waiting_from_city_tomorow)
+    await handle_weather_command(
+        message=message,
+        state=state,
+        form_func=get_weather_tomorow,
+        next_state=Form.waiting_from_city_tomorow
+    )
 
 @router.message(Form.waiting_from_city_tomorow)
 async def weather_day(message: Message, state: FSMContext):
-    city = message.text
-    data = await get_weather(city, wether_api)
-
-    if data == None:
-        await message.answer("Такой город не найден, введите город ещё раз")
-        return
-
-    await db.add_user_city(message.from_user.id, city)
-    string = await get_weather_tomorow(data)
-
-    await message.answer(string)
-    await state.clear()
+    await handle_weather_input(
+        message=message,
+        state=state,
+        form_func=get_weather_tomorow
+    )
 
 @router.message(F.text == "/three_days")
 async def three_days_ask_city(message: Message, state: FSMContext) -> None:
-    city = await db.get_user_city(message.from_user.id)
-    if city != None:
-        data = await get_weather(city, wether_api)
-        string = await get_weather_three_day(data)
-
-        await message.answer(string)
-        await state.clear()
-
-        return
-
-    await message.answer("Введите название города")
-    await state.set_state(Form.waiting_from_city_three_day)
+    await handle_weather_command(
+        message=message,
+        state=state,
+        form_func=get_weather_three_day,
+        next_state=Form.waiting_from_city_three_day
+    )
 
 @router.message(Form.waiting_from_city_three_day)
 async def three_days(message: Message, state: FSMContext):
-    city = message.text
-    data = await get_weather(city, wether_api)
-
-    if data == None:
-        await message.answer("Такой город не найден, введите город ещё раз")
-        return
-
-    string = await get_weather_three_day(data)
-
-    await message.answer(string)
-    await state.clear()
+    await handle_weather_input(
+        message=message,
+        state=state,
+        form_func=get_weather_three_day
+    )
 
 async def link_setting_kb():
     inline_kb_list = [
