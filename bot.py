@@ -14,7 +14,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, FSInputFile
 
-from weather import get_weather, get_weather_new, get_weather_new_data, get_weather_day, get_weather_three_day, get_weather_three_days_data, get_weather_tomorow, get_weather_data
+from weather import get_weather, get_weather_new, get_weather_new_data, get_weather_day, get_weather_three_day, get_weather_three_days_data, get_weather_tomorow, get_weather_data, parse_custom_date, date_diff
 
 from db import db
 
@@ -57,7 +57,7 @@ async def handle_weather_input(
     state: FSMContext,
     form_func: Callable[[Any], Any]
 ):
-    city = await db.get_user_city(message.from_user.id)
+    city = message.text
     data = await get_weather(city, wether_api)
 
     if data is None:
@@ -90,6 +90,7 @@ async def weather_new(message: Message, state: FSMContext):
 
 @router.message(F.text == "/day")
 async def weather_day_ask_city(message: Message, state: FSMContext) -> None:
+    print("get_wether_day")
     await handle_weather_command(
         message=message,
         state=state,
@@ -99,6 +100,7 @@ async def weather_day_ask_city(message: Message, state: FSMContext) -> None:
 
 @router.message(Form.waiting_from_city_day)
 async def weather_day(message: Message, state: FSMContext):
+    print("get_wether_day_callback")
     await handle_weather_input(
         message=message,
         state=state,
@@ -222,6 +224,38 @@ async def create_image_day(message: Message, command: CommandObject):
     image = FSInputFile(file_path)
 
     await message.answer_photo(photo=image, caption=f"Погода в {city}")
+
+@router.message(Command("image_select_day"))
+async def create_image_select_day(message: Message, command: CommandObject):
+    args = command.args
+    if args == None:
+        await message.answer(
+            "Вы не ввели дату, после команды /image_select_day нужно писать дату (/image_select_day день) или (/image_select_day день.месяц)"
+        )
+        return
+    try:
+        city = await db.get_user_city(message.from_user.id)
+        data = await get_weather(city, wether_api)
+
+        select_day = (await parse_custom_date(str(args))).date()
+
+        day_dif = await date_diff(select_day)
+
+        if day_dif >= 7 or day_dif < 0:
+            await message.answer("Нет данных на этот день")
+            return
+        
+        time_list, temp_list, app_temp_list, weather_list, day_date_str = await get_weather_data(data, day_dif)
+        file_path = await generate_weather_widget_hourly(city, day_date_str, temp_list, app_temp_list, weather_list, message.from_user.id)
+
+        image = FSInputFile(file_path)
+
+        await message.answer_photo(photo=image, caption=f"Погода в {city}")
+        
+    except ValueError:
+        await message.answer("Некорректная дата")
+    
+
 
 @router.message(CommandStart)
 async def command_start(message: Message) -> None:

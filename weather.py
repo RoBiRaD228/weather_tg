@@ -4,7 +4,7 @@ import aiohttp
 import os
 from dotenv import load_dotenv
 import requests
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 
 import locale
 import math
@@ -41,6 +41,9 @@ async def get_city_parms(city_name, api_key):
         print(f"Ошибка HTTP (неверный город или ключ): {Eror}")
 
 async def get_weather(city, api_key):
+    if api_key == None:
+        print("API_KEY == NONE")
+
     lat, lon = await get_city_parms(city, api_key)
     if lat == None or lon == None:
         return None
@@ -299,3 +302,39 @@ async def get_weather_data(data, day):
     print(day_date_str)
 
     return time_list, temperature_list, app_temperature_list, weather_list, day_date_str
+
+async def parse_custom_date(date_str: str) -> datetime:
+    now = datetime.now()
+    current_year = now.year
+    current_month = now.month
+
+    date_str = date_str.strip()
+    parts = date_str.split(".")
+
+    if len(parts) == 1:
+        day = int(parts[0])
+        month = current_month
+        year = current_year
+    elif len(parts) == 2:
+        day = int(parts[0])
+        month = int(parts[1])
+        year = current_year
+    else:
+        raise ValueError("Некорректный формат даты")
+
+    return datetime(year=year, month=month, day=day)
+
+async def date_diff(target_date_1: date, target_date_2: date | None = None):
+    today = date.today() 
+    
+    if hasattr(target_date_1, "date"):
+        target_date_1 = target_date_1.date()
+
+    if target_date_2 is not None and hasattr(target_date_2, "date"):
+        target_date_2 = target_date_2.date()
+    
+    second_date = target_date_2 if target_date_2 is not None else today
+
+    day_dif = (target_date_1 - second_date).days
+
+    return day_dif
