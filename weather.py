@@ -13,7 +13,7 @@ load_dotenv()
 
 api_key = os.getenv("API")
 
-DAYS = ["пнд.", "втр.", "ср.", "чтв.", "пят.", "суб.", "вос."]
+DAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
 MONTHS = ["января", "февраля", "марта", "апреля", "мая", "июня", 
 "июля", "августа", "сентября", "октября", "ноября", "декабря"]
 
@@ -155,7 +155,14 @@ async def get_weather_new_data(data):
     app_current_temp = f"{round(app_temperature[hour])}"
     weather = await weather_code_string(weather_code[hour])
 
-    return current_temp, app_current_temp, weather
+    day_date = datetime.now()
+    weekday = DAYS[day_date.weekday()].capitalize()
+    day_num = day_date.day
+    month = MONTHS[day_date.month - 1]
+
+    day_date_str = f"{weekday} {day_num} {month}"
+
+    return current_temp, app_current_temp, weather, day_date_str
 
 async def get_weather_day(data):
     hourly_data = data["hourly"]

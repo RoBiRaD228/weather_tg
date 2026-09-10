@@ -5,7 +5,6 @@ from html2image import Html2Image
 hti = Html2Image(output_path="temp")
 os.makedirs("temp", exist_ok=True)
 
-# Вспомогательная синхронная функция рендеринга
 def _take_screenshot(html_code: str, file_name: str, size: tuple[int, int]) -> str:
     hti.screenshot(
         html_str=html_code, 
@@ -15,222 +14,162 @@ def _take_screenshot(html_code: str, file_name: str, size: tuple[int, int]) -> s
     return os.path.join("temp", file_name)
 
 
-async def generate_weather_widget(city: str, current_temp: str, app_temp: str, weather: str, user_id: int) -> str:
-    html_code = f"""
-<!DOCTYPE html>
-<style>
-body {{
-    margin: 0;
-    padding: 0;
-    background: transparent;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-}}
+async def generate_weather_widget(city: str, date_str: str, current_temp: str, app_temp: str, weather: str, user_id: int) -> str:
+    icon_svg = get_weather_icon(weather)
 
-.card {{
-    width: 380px;
-    height: 220px;
-    background: linear-gradient(135deg, #4a00e0, #8e2de2);
-    color: white;
-    box-sizing: border-box;
-    padding: 24px 28px;
-
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-}}
-
-.city_and_temp {{
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}}
-
-.city {{
-    font-size: 28px;
-    font-weight: 700;
-    letter-spacing: -0.5px;
-}}
-
-.temp {{
-    font-size: 42px;
-    font-weight: 800;
-    line-height: 1;
-}}
-
-.weather {{
-    font-size: 20px;
-    font-weight: 500;
-    opacity: 0.9;
-    margin-top: -10px;
-}}
-
-.temp_row {{
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 14px;
-    background: rgba(255, 255, 255, 0.15);
-    padding: 8px 14px;
-    border-radius: 12px;
-    width: fit-content;
-    backdrop-filter: blur(10px);
-}}
-
-.text_app_temp {{
-    font-style: normal;
-    opacity: 0.8;
-}}
-
-.app_temp {{
-    font-weight: 700;
-}}
-</style>
-<body>
-    <div class="card">
-        <div class="city_and_temp">
-            <div class="city">{city}</div>
-            <div class="temp">({current_temp} °C)</div>
-        </div>
-        <div class="temp_row">
-            <div class="text_app_temp">Ощущается как</div>
-            <div class="app_temp">{app_temp} °C</div>
-        </div>
-        <div class="weather">{weather}</div>
-    </div>
-</body>
-</html>
-    """
-
-    file_name = f"{user_id}_weather_card.png"
-    
-    # Вызываем синхронное создание скриншота в отдельном потоке
-    file_path = await asyncio.to_thread(
-        _take_screenshot, html_code, file_name, (380, 220)
-    )
-    return file_path
-
-
-async def generate_weather_widget_three_days(city: str, current_temp_list: list, app_current_temp_list: list, weather_list: list, third_day: str, user_id: int) -> str:
     html_code = f"""
 <!DOCTYPE html>
 <html lang="ru">
-<style>
-    body {{
-    margin: 0;
-    padding: 0;
-    background: transparent;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-}}
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {{
+            margin: 0;
+            padding: 0;
+            background: transparent;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }}
 
-.card {{
-    width: 520px;
-    height: 250px;
-    background: linear-gradient(135deg, #4a00e0, #8e2de2);
-    color: white;
-    box-sizing: border-box;
-    padding: 24px;
-    box-shadow: 0 15px 30px rgba(74, 0, 224, 0.3);
+        .card {{
+            width: 380px;
+            height: 220px;
+            background: linear-gradient(135deg, #4a00e0, #8e2de2);
+            color: white;
+            box-sizing: border-box;
+            padding: 20px 24px;
 
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-}}
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }}
 
-.header {{
-    padding: 0px 24px;
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-}}
+        .header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }}
 
-.city {{
-    font-size: 26px;
-    font-weight: 800;
-    margin: 0;
-    letter-spacing: -0.5px;
-}}
+        .city_block {{
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }}
 
-.subtitle {{
-    font-size: 13px;
-    opacity: 0.75;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}}
+        .city {{
+            font-size: 22px;
+            font-weight: 800;
+            margin: 0;
+            letter-spacing: -0.3px;
+        }}
 
-.forecast_grid {{
-    display: flex;
-    gap: 12px;
-}}
+        .date {{
+            font-size: 13px;
+            font-weight: 500;
+            opacity: 0.75;
+            padding-left: 8px;
+            border-left: 1px solid rgba(255, 255, 255, 0.3);
+        }}
 
-.day_column {{
-    flex: 1;
-    background: rgba(255, 255, 255, 0.12);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 18px;
-    padding: 14px 10px;
-    
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    justify-content: space-between;
-}}
+        .subtitle {{
+            font-size: 11px;
+            opacity: 0.6;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            font-weight: 700;
+        }}
 
-.day_name {{
-    font-size: 14px;
-    font-weight: 600;
-    opacity: 0.9;
-}}
+        .main_info {{
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 4px;
+        }}
 
-.temp {{
-    font-size: 30px;
-    font-weight: 800;
-    margin: 6px 0;
-    line-height: 1;
-}}
+        .temp_container {{
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }}
 
-.weather {{
-    font-size: 13px;
-    font-weight: 500;
-    opacity: 0.85;
-    margin-bottom: 6px;
-}}
+        .temp {{
+            font-size: 46px;
+            font-weight: 800;
+            line-height: 1;
+            letter-spacing: -1px;
+        }}
 
-.app_temp {{
-    font-size: 11px;
-    opacity: 0.7;
-    background: rgba(0, 0, 0, 0.15);
-    padding: 4px 8px;
-    border-radius: 8px;
-}}
-</style>
+        .weather_text {{
+            font-size: 15px;
+            font-weight: 500;
+            opacity: 0.9;
+            text-transform: capitalize;
+        }}
+
+        .main_icon {{
+            width: 76px;
+            height: 76px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.15));
+        }}
+
+        .main_icon svg {{
+            width: 100%;
+            height: 100%;
+        }}
+
+        .footer {{
+            display: flex;
+            align-items: center;
+        }}
+
+        .app_temp_badge {{
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            padding: 6px 12px;
+            border-radius: 10px;
+        }}
+
+        .app_temp_label {{
+            opacity: 0.8;
+        }}
+
+        .app_temp_val {{
+            font-weight: 700;
+        }}
+    </style>
+</head>
 <body>
     <div class="card">
         <div class="header">
-            <h1 class="city">{city}</h1>
-            <span class="subtitle">Прогноз на 3 дня</span>
+            <div class="city_block">
+                <h1 class="city">{city}</h1>
+                <span class="date">{date_str}</span>
+            </div>
+            <span class="subtitle">Сейчас</span>
         </div>
-        <div class="forecast_grid">
-            <div class="day_column">
-                <div class="day_name">Сегодня</div>
-                <div class="temp">{current_temp_list[0]}°C</div>
-                <div class="weather">{weather_list[0]}</div>
-                <div class="app_temp">ощущ. как {app_current_temp_list[0]}°C</div>
-            </div>
-            <div class="day_column">
-                <div class="day_name">Завтра</div>
-                <div class="temp">{current_temp_list[1]}°C</div>
-                <div class="weather">{weather_list[1]}</div>
-                <div class="app_temp">ощущ. как {app_current_temp_list[1]}°C</div>
-            </div>
-            <div class="day_column">
-                <div class="day_name">{third_day}</div>
-                <div class="temp">{current_temp_list[2]}°C</div>
-                <div class="weather">{weather_list[2]}</div>
-                <div class="app_temp">ощущ. как {app_current_temp_list[2]}°C</div>
-            </div>
 
+        <div class="main_info">
+            <div class="temp_container">
+                <div class="temp">{current_temp}°C</div>
+                <div class="weather_text">{weather}</div>
+            </div>
+            <div class="main_icon">
+                {icon_svg}
+            </div>
+        </div>
+
+        <div class="footer">
+            <div class="app_temp_badge">
+                <span class="app_temp_label">Ощущается как</span>
+                <span class="app_temp_val">{app_temp}°C</span>
+            </div>
         </div>
     </div>
 </body>
@@ -238,10 +177,194 @@ async def generate_weather_widget_three_days(city: str, current_temp_list: list,
 """
 
     file_name = f"{user_id}_weather_card.png"
-    
+
     file_path = await asyncio.to_thread(
-        _take_screenshot, html_code, file_name, (520, 250)
+        _take_screenshot, html_code, file_name, (380, 220)
     )
+    return file_path
+
+
+async def generate_weather_widget_three_days(
+    city: str, 
+    current_temp_list: list, 
+    app_current_temp_list: list, 
+    weather_list: list, 
+    third_day: str, 
+    user_id: int,
+    date_str: str = ""
+) -> str:
+    days_names = ["Сегодня", "Завтра", third_day]
+    days_html = ""
+
+    for i in range(3):
+        day_name = days_names[i]
+        temp = current_temp_list[i]
+        app_temp = app_current_temp_list[i]
+        weather_text = weather_list[i]
+        icon_svg = get_weather_icon(weather_text)
+
+        days_html += f"""
+        <div class="day_column">
+            <div class="day_name">{day_name}</div>
+            <div class="icon">{icon_svg}</div>
+            <div class="temp">{temp}°C</div>
+            <div class="app_temp">ощущ. как {app_temp}°C</div>
+        </div>
+        """
+
+    date_html = f'<span class="date">{date_str}</span>' if date_str else ""
+
+    html_code = f"""
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {{
+            margin: 0;
+            padding: 0;
+            background: transparent;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }}
+
+        .card {{
+            width: 520px;
+            height: 280px;
+            background: linear-gradient(135deg, #4a00e0, #8e2de2);
+            color: white;
+            box-sizing: border-box;
+            padding: 22px 24px;
+            box-shadow: 0 15px 30px rgba(74, 0, 224, 0.3);
+
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }}
+
+        .header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }}
+
+        .city_block {{
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }}
+
+        .city {{
+            font-size: 22px;
+            font-weight: 800;
+            margin: 0;
+            letter-spacing: -0.3px;
+        }}
+
+        .date {{
+            font-size: 13px;
+            font-weight: 500;
+            opacity: 0.75;
+            padding-left: 8px;
+            border-left: 1px solid rgba(255, 255, 255, 0.3);
+        }}
+
+        .subtitle {{
+            font-size: 11px;
+            opacity: 0.6;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            font-weight: 700;
+        }}
+
+        .forecast_grid {{
+            display: flex;
+            gap: 12px;
+            height: 190px;
+        }}
+
+        .day_column {{
+            flex: 1;
+            background: rgba(255, 255, 255, 0.12);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 18px;
+            padding: 12px 8px;
+            
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            justify-content: space-between;
+        }}
+
+        .day_name {{
+            font-size: 13px;
+            font-weight: 700;
+            opacity: 0.9;
+        }}
+
+        .icon {{
+            width: 36px;
+            height: 36px;
+            margin: 2px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.15));
+        }}
+
+        .icon svg {{
+            width: 100%;
+            height: 100%;
+        }}
+
+        .temp {{
+            font-size: 24px;
+            font-weight: 800;
+            line-height: 1;
+            letter-spacing: -0.5px;
+        }}
+
+        .weather {{
+            font-size: 12px;
+            font-weight: 500;
+            opacity: 0.85;
+            text-transform: capitalize;
+            line-height: 1.2;
+            max-height: 2.4em;
+            overflow: hidden;
+        }}
+
+        .app_temp {{
+            font-size: 10px;
+            opacity: 0.75;
+            background: rgba(0, 0, 0, 0.15);
+            padding: 4px 8px;
+            border-radius: 8px;
+            white-space: nowrap;
+        }}
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="header">
+            <div class="city_block">
+                <h1 class="city">{city}</h1>
+                {date_html}
+            </div>
+            <span class="subtitle">Прогноз на 3 дня</span>
+        </div>
+
+        <div class="forecast_grid">
+            {days_html}
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+    file_name = f"{user_id}_weather_card_3days.png"
+    file_path = await asyncio.to_thread(_take_screenshot, html_code, file_name, (520, 280))
     return file_path
 
 
